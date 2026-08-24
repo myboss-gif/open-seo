@@ -13,7 +13,18 @@ echo 'OpenSEO sends an anonymous usage heartbeat (counts only). Disable: OPENSEO
 # in seconds with the exact fix instead of after a multi-minute build.
 pnpm exec tsx scripts/selfhost-preflight.ts
 
-pnpm run db:migrate:local
+# Patch (selfhost-pg): the upstream entrypoint always runs the D1 migration, so
+# DATABASE_PROVIDER=postgres would boot against an empty schema. Unset/empty/d1
+# keeps upstream's behaviour; anything else fails here rather than after a
+# multi-minute build, matching src/db/provider.ts which rejects other values.
+case "${DATABASE_PROVIDER:-d1}" in
+  postgres) pnpm run db:migrate:pg ;;
+  d1) pnpm run db:migrate:local ;;
+  *)
+    echo "DATABASE_PROVIDER must be 'd1' or 'postgres' (got: '${DATABASE_PROVIDER}')" >&2
+    exit 1
+    ;;
+esac
 
 # POSTHOG_SOURCEMAPS (CI sourcemap uploads) moves vite's outDir; keep the
 # fingerprint marker beside the output it describes.
